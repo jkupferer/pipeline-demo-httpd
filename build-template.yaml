@@ -1,0 +1,62 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  service: ${SERVICE_NAME}
+  template: build
+metadata:
+  name: build
+parameters:
+- displayName: Pipeline Build Number
+  name: PIPELINE_BUILD_NUMBER
+  required: true
+- displayName: Pipeline Build Source
+  name: PIPELINE_BUILD_SOURCE
+  required: true
+- displayName: Pipeline Build Branch
+  name: PIPELINE_BUILD_BRANCH
+  required: true
+- displayName: Pipeline Build Commit
+  name: PIPELINE_BUILD_COMMIT
+  required: true
+- displayName: Service Name
+  name: SERVICE_NAME
+  required: true
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ${SERVICE_NAME}
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: ${SERVICE_NAME}
+    annotations:
+      pipeline-build-number: ${PIPELINE_BUILD_NUMBER}
+      pipeline-build-source: ${PIPELINE_BUILD_SOURCE}
+      pipeline-build-branch: ${PIPELINE_BUILD_BRANCH}
+      pipeline-build-commit: ${PIPELINE_BUILD_COMMIT}
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${SERVICE_NAME}:${PIPELINE_BUILD_NUMBER}
+    source:
+      type: Binary
+    strategy:
+      sourceStrategy:
+        env:
+        - name: PIPELINE_BUILD_NUMBER
+          value: ${PIPELINE_BUILD_NUMBER}
+        - name: PIPELINE_BUILD_SOURCE
+          value: ${PIPELINE_BUILD_SOURCE}
+        - name: PIPELINE_BUILD_BRANCH
+          value: ${PIPELINE_BUILD_BRANCH}
+        - name: PIPELINE_BULID_COMMIT
+          value: ${PIPELINE_BUILD_COMMIT}
+        from:
+          kind: ImageStreamTag
+          name: httpd:2.4
+          namespace: openshift
+      type: Source
+    triggers: []
