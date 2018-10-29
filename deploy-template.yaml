@@ -1,0 +1,107 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+labels:
+  service: ${SERVICE_NAME}
+  template: deploy
+metadata:
+  name: deploy
+parameters:
+- displayName: Build Namespace
+  name: BUILD_NAMESPACE
+  required: true
+- displayName: CPU LIMIT
+  name: CPU_LIMIT
+  required: true
+- displayName: CPU Request
+  name: CPU_REQUEST
+  required: true
+- displayName: Memory LIMIT
+  name: MEMORY_LIMIT
+  required: true
+- displayName: Memory Request
+  name: MEMORY_REQUEST
+  required: true
+- displayName: Pipeline Build Number
+  name: PIPELINE_BUILD_NUMBER
+  required: true
+- displayName: Pipeline Build Source
+  name: PIPELINE_BUILD_SOURCE
+  required: true
+- displayName: Pipeline Build Branch
+  name: PIPELINE_BUILD_BRANCH
+  required: true
+- displayName: Pipeline Build Commit
+  name: PIPELINE_BUILD_COMMIT
+  required: true
+- displayName: Route Hostname
+  name: ROUTE_HOST
+  required: false
+- displayName: Service Name
+  name: SERVICE_NAME
+  required: true
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${SERVICE_NAME}
+    annotations:
+      pipeline-build-number: ${PIPELINE_BUILD_NUMBER}
+      pipeline-build-source: ${PIPELINE_BUILD_SOURCE}
+      pipeline-build-branch: ${PIPELINE_BUILD_BRANCH}
+      pipeline-build-commit: ${PIPELINE_BUILD_COMMIT}
+  spec:
+    replicas: 2
+    selector:
+      service: ${SERVICE_NAME}
+    strategy:
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          service: ${SERVICE_NAME}
+        name: ${SERVICE_NAME}
+      spec:
+        containers:
+        - name: ${SERVICE_NAME}
+          image: docker-registry.default.svc:5000/${BUILD_NAMESPACE}/${SERVICE_NAME}:${PIPELINE_BUILD_NUMBER}
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            timeoutSeconds: 3
+          resources:
+            limits:
+              cpu: ${CPU_LIMIT}
+              memory: ${MEMORY_LIMIT}
+            requests:
+              cpu: ${CPU_REQUEST}
+              memory: ${MEMORY_REQUEST}
+    triggers:
+    - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes and load balances the application pods
+    name: ${SERVICE_NAME}
+  spec:
+    ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+    selector:
+      service: ${SERVICE_NAME}
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: ${SERVICE_NAME}
+  spec:
+    host: ${ROUTE_HOST}
+    to:
+      kind: Service
+      name: ${SERVICE_NAME}
