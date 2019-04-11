@@ -1,13 +1,13 @@
 /* Required parameters
  *
- * SERVICE_NAME - 
- * STG_TOKEN_SECRET - 
- * STG_OPENSHIFT_URL - 
+ * SERVICE_NAME -
+ * TEST_TOKEN_SECRET -
+ * TEST_OPENSHIFT_URL -
  *
  */
-node('pipeline') {
+node('maven') {
     buildParam = null
-    buildProject = "${SERVICE_NAME}-build-stage"
+    buildProject = "${SERVICE_NAME}-build"
     qaProject = "${SERVICE_NAME}-qa"
     uatProject = "${SERVICE_NAME}-uat"
     testConfigMap = "${SERVICE_NAME}-test-scripts"
@@ -15,11 +15,11 @@ node('pipeline') {
 
     stage('Get Sources') {
         withCredentials([
-            string(credentialsId: STG_TOKEN_SECRET, variable: 'STG_TOKEN')
+            string(credentialsId: TEST_TOKEN_SECRET, variable: 'TEST_TOKEN')
         ]) {
             echo "## Login to dev cluster"
-            sh "oc login $STG_OPENSHIFT_URL " +
-               "--token=$STG_TOKEN " +
+            sh "oc login $TEST_OPENSHIFT_URL " +
+               "--token=$TEST_TOKEN " +
                "--certificate-authority=/run/secrets/kubernetes.io/serviceaccount/ca.crt"
         }
 

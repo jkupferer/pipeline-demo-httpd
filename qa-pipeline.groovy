@@ -1,18 +1,18 @@
 /* Required parameters
  *
- * SERVICE_NAME - 
+ * SERVICE_NAME -
  * DEV_TOKEN_SECRET - name of dev token jenkins credential
- * DEV_OPENSHIFT_URL - 
- * STG_TOKEN_SECRET - 
- * STG_OPENSHIFT_URL - 
+ * DEV_OPENSHIFT_URL -
+ * TEST_TOKEN_SECRET -
+ * TEST_OPENSHIFT_URL -
  *
  */
-node('pipeline') {
+node('maven') {
     buildParam = null
     devClusterRegistry = null
     stageClusterRegistry = null
     devBuildProject = "${SERVICE_NAME}-build"
-    stageBuildProject = "${SERVICE_NAME}-build-stage"
+    stageBuildProject = "${SERVICE_NAME}-build"
     intProject = "${SERVICE_NAME}-int"
     qaProject = "${SERVICE_NAME}-qa"
     testConfigMap = "${SERVICE_NAME}-test-scripts"
@@ -20,7 +20,7 @@ node('pipeline') {
 
     withCredentials([
         string(credentialsId: DEV_TOKEN_SECRET, variable: 'DEV_TOKEN'),
-        string(credentialsId: STG_TOKEN_SECRET, variable: 'STG_TOKEN')
+        string(credentialsId: TEST_TOKEN_SECRET, variable: 'TEST_TOKEN')
     ]) {
         stage('Get Sources') {
             echo "## Login to dev cluster"
@@ -34,11 +34,11 @@ node('pipeline') {
             buildParam = buildParamConfigMap.data
             writeYaml file: 'build-param.yaml', data: buildParam
 
-            echo "## Get source registry hostname"
-            devClusterRegistry = sh (
-                script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
-                returnStdout: true
-            )
+            //echo "## Get source registry hostname"
+            //devClusterRegistry = sh (
+            //    script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
+            //    returnStdout: true
+            //)
 
             echo "## Get pipeline build source"
             dir('src') {
@@ -49,20 +49,20 @@ node('pipeline') {
 
         stage('Promote image to stage') {
             echo "## Login to stageopenshift-master.libvirt cluster"
-            sh "oc login $STG_OPENSHIFT_URL " +
-               "--token=$STG_TOKEN " +
+            sh "oc login $TEST_OPENSHIFT_URL " +
+               "--token=$TEST_TOKEN " +
                "--certificate-authority=/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-            stageClusterRegistry = sh (
-                script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
-                returnStdout: true
-            )
-            sh "skopeo copy " +
-               "--dest-creds=token:$STG_TOKEN " +
-               "--dest-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
-               "--src-creds=token:$DEV_TOKEN " +
-               "--src-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
-               "docker://${devClusterRegistry}/${devBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER} " +
-               "docker://${stageClusterRegistry}/${stageBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER}"
+        //    stageClusterRegistry = sh (
+        //        script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
+        //        returnStdout: true
+        //    )
+        //    sh "skopeo copy " +
+        //       "--dest-creds=token:$TEST_TOKEN " +
+        //       "--dest-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
+        //       "--src-creds=token:$DEV_TOKEN " +
+        //       "--src-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
+        //       "docker://${devClusterRegistry}/${devBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER} " +
+        //       "docker://${stageClusterRegistry}/${stageBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER}"
         }
     }
 

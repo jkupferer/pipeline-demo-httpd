@@ -1,10 +1,18 @@
-node('pipeline') {
+/* Required parameters
+ *
+ * ARTIFACT_URL -
+ * SERVICE_NAME -
+ * DEV_TOKEN_SECRET -
+ * DEV_OPENSHIFT_URL -
+ *
+ */
+node('maven') {
     buildParam = null
     buildProject = "${SERVICE_NAME}-build"
     devProject = "${SERVICE_NAME}-dev"
     testConfigMap = "${SERVICE_NAME}-test-scripts"
     testPod = "${SERVICE_NAME}-test"
-    
+
     stage('Get Sources') {
         echo "## Download artifact zipfile"
         sh 'curl -oartifact.zip ${ARTIFACT_URL}'
@@ -57,7 +65,7 @@ node('pipeline') {
         echo "## Wait for deployment to complete:"
         sh "oc rollout status dc/${SERVICE_NAME} -w"
     }
-    
+
     stage('Test in dev') {
         echo "## Reset from previous testing:"
         sh "oc delete pod ${testPod} --ignore-not-found"

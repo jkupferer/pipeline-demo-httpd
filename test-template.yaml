@@ -20,6 +20,9 @@ objects:
     - name: test
       image: docker-registry.default.svc:5000/openshift/python:latest
       command: ['/bin/sh', '-c', 'for TEST in /tests/*.sh; do source $TEST; done']
+      env:
+      - name: SERVICE_NAME
+        value: ${SERVICE_NAME}
       volumeMounts:
       - mountPath: /tests
         name: tests

@@ -12,28 +12,28 @@ parameters:
   required: true
 - displayName: CPU LIMIT
   name: CPU_LIMIT
-  required: true
+  value: 500m
 - displayName: CPU Request
   name: CPU_REQUEST
-  required: true
+  value: 100m
 - displayName: Memory LIMIT
   name: MEMORY_LIMIT
-  required: true
+  value: 256Mi
 - displayName: Memory Request
   name: MEMORY_REQUEST
-  required: true
+  value: 128Mi
 - displayName: Pipeline Build Number
   name: PIPELINE_BUILD_NUMBER
-  required: true
+  value: "0"
 - displayName: Pipeline Build Source
   name: PIPELINE_BUILD_SOURCE
-  required: true
+  value: sandbox
 - displayName: Pipeline Build Branch
   name: PIPELINE_BUILD_BRANCH
-  required: true
+  value: sandbox
 - displayName: Pipeline Build Commit
   name: PIPELINE_BUILD_COMMIT
-  required: true
+  value: sandbox
 - displayName: Route Hostname
   name: ROUTE_HOST
   required: false
@@ -65,7 +65,7 @@ objects:
         containers:
         - name: ${SERVICE_NAME}
           image: docker-registry.default.svc:5000/${BUILD_NAMESPACE}/${SERVICE_NAME}:${PIPELINE_BUILD_NUMBER}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
           - containerPort: 8080
           readinessProbe:

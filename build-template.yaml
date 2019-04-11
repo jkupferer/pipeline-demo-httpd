@@ -9,16 +9,16 @@ metadata:
 parameters:
 - displayName: Pipeline Build Number
   name: PIPELINE_BUILD_NUMBER
-  required: true
+  value: "0"
 - displayName: Pipeline Build Source
   name: PIPELINE_BUILD_SOURCE
-  required: true
+  value: sandbox
 - displayName: Pipeline Build Branch
   name: PIPELINE_BUILD_BRANCH
-  required: true
+  value: sandbox
 - displayName: Pipeline Build Commit
   name: PIPELINE_BUILD_COMMIT
-  required: true
+  value: sandbox
 - displayName: Service Name
   name: SERVICE_NAME
   required: true
@@ -43,6 +43,7 @@ objects:
         name: ${SERVICE_NAME}:${PIPELINE_BUILD_NUMBER}
     source:
       type: Binary
+      contextDir: content
     strategy:
       sourceStrategy:
         env:

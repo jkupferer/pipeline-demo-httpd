@@ -1,11 +1,18 @@
-node('pipeline') {
+/* Required parameters
+ *
+ * SERVICE_NAME -
+ * DEV_TOKEN_SECRET -
+ * DEV_OPENSHIFT_URL -
+ *
+ */
+node('maven') {
     buildParam = null
     buildProject = "${SERVICE_NAME}-build"
     devProject = "${SERVICE_NAME}-dev"
     intProject = "${SERVICE_NAME}-int"
     testConfigMap = "${SERVICE_NAME}-test-scripts"
     testPod = "${SERVICE_NAME}-test"
-    
+
     stage('Get Sources') {
         echo "## Login to dev cluster"
         withCredentials([string(credentialsId: DEV_TOKEN_SECRET, variable: 'DEV_TOKEN')]) {

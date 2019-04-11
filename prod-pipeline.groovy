@@ -1,29 +1,29 @@
 /* Required parameters
  *
- * SERVICE_NAME - 
- * STG_TOKEN_SECRET - 
- * STG_OPENSHIFT_URL - 
+ * SERVICE_NAME -
+ * TEST_TOKEN_SECRET -
+ * TEST_OPENSHIFT_URL -
  * PRD_TOKEN_SECRET - name of dev token jenkins credential
- * PRD_OPENSHIFT_URL - 
+ * PRD_OPENSHIFT_URL -
  *
  */
-node('pipeline') {
+node('maven') {
     buildParam = null
     stageClusterRegistry = null
     prodClusterRegistry = null
-    stageBuildProject = "${SERVICE_NAME}-build-stage"
-    prodBuildProject = "${SERVICE_NAME}-build-prd"
+    stageBuildProject = "${SERVICE_NAME}-build"
+    prodBuildProject = "${SERVICE_NAME}-build"
     uatProject = "${SERVICE_NAME}-uat"
     prodProject = "${SERVICE_NAME}-prd"
 
     withCredentials([
-        string(credentialsId: STG_TOKEN_SECRET, variable: 'STG_TOKEN'),
+        string(credentialsId: TEST_TOKEN_SECRET, variable: 'TEST_TOKEN'),
         string(credentialsId: PRD_TOKEN_SECRET, variable: 'PRD_TOKEN')
     ]) {
         stage('Get Sources') {
             echo "## Login to stage cluster"
-            sh "oc login $STG_OPENSHIFT_URL " +
-               "--token=$STG_TOKEN " +
+            sh "oc login $TEST_OPENSHIFT_URL " +
+               "--token=$TEST_TOKEN " +
                "--certificate-authority=/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
             echo "## Read build parameters from last successful UAT build"
@@ -32,11 +32,11 @@ node('pipeline') {
             buildParam = buildParamConfigMap.data
             writeYaml file: 'build-param.yaml', data: buildParam
 
-            echo "## Get source registry hostname"
-            stageClusterRegistry = sh (
-                script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
-                returnStdout: true
-            )
+            //echo "## Get source registry hostname"
+            //stageClusterRegistry = sh (
+            //    script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
+            //    returnStdout: true
+            //)
 
             echo "## Get pipeline build source"
             dir('src') {
@@ -50,17 +50,17 @@ node('pipeline') {
             sh "oc login $PRD_OPENSHIFT_URL " +
                "--token=$PRD_TOKEN " +
                "--certificate-authority=/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-            prodClusterRegistry = sh (
-                script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
-                returnStdout: true
-            )
-            sh "skopeo copy " +
-               "--dest-creds=token:$PRD_TOKEN " +
-               "--dest-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
-               "--src-creds=token:$STG_TOKEN " +
-               "--src-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
-               "docker://${stageClusterRegistry}/${stageBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER} " +
-               "docker://${prodClusterRegistry}/${prodBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER}"
+        //    prodClusterRegistry = sh (
+        //        script: "oc get route -n default docker-registry -o jsonpath='{.spec.host}'",
+        //        returnStdout: true
+        //    )
+        //    sh "skopeo copy " +
+        //       "--dest-creds=token:$PRD_TOKEN " +
+        //       "--dest-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
+        //       "--src-creds=token:$TEST_TOKEN " +
+        //       "--src-cert-dir=/run/secrets/kubernetes.io/serviceaccount/ " +
+        //       "docker://${stageClusterRegistry}/${stageBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER} " +
+        //       "docker://${prodClusterRegistry}/${prodBuildProject}/${SERVICE_NAME}:${buildParam.PIPELINE_BUILD_NUMBER}"
         }
     }
 
