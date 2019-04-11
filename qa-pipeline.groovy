@@ -29,7 +29,8 @@ node('maven') {
                "--certificate-authority=/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
             echo "## Read build parameters from last successful integration build"
-            sh "oc get configmap build-param -n ${intProject} -o json --export >build-param.json"
+            sh "oc get configmap $SERVICE_NAME-build-param -n ${intProject} " +
+               "-o json --export >build-param.json"
             buildParamConfigMap = readJSON file: 'build-param.json'
             buildParam = buildParamConfigMap.data
             writeYaml file: 'build-param.yaml', data: buildParam
@@ -72,6 +73,7 @@ node('maven') {
             sh "oc project ${qaProject}"
             sh "oc process -f src/deploy-template.yaml --ignore-unknown-parameters " +
                "--param-file=build-param.yaml " +
+               "-p SERVICE_NAME=${SERVICE_NAME} " +
                "-p ENV=qa " +
                "-p BUILD_NAMESPACE=${stageBuildProject} " +
                "-p CPU_LIMIT=${buildParam.QA_CPU_LIMIT} " +
@@ -97,6 +99,7 @@ node('maven') {
             getTestStatus = "oc get pod ${testPod} -o jsonpath='{.status.phase}'"
             sh "oc process -f src/test-template.yaml --ignore-unknown-parameters " +
                "--param-file=build-param.yaml " +
+               "-p SERVICE_NAME=${SERVICE_NAME} " +
                "-p ENV=qa " +
                "| oc apply -f -"
 
@@ -112,16 +115,19 @@ node('maven') {
 
         stage('Record success in qa') {
             echo "## Save build parameters in ${qaProject} project:"
-            sh "oc delete configmap build-param --ignore-not-found"
+            sh "oc delete configmap ${SERVICE_NAME}-build-param --ignore-not-found"
             sh "oc create -f build-param.json"
 
             echo "## Save deploy template in ${qaProject} project:"
-            sh "oc apply -f src/deploy-template.yaml"
+            deployTemplate = readYaml file: "src/deploy-template.yaml"
+            deployTemplate.metadata.name = "${SERVICE_NAME}-deploy"
+            writeYaml file: 'deploy-template.yaml', data: deployTemplate
+            sh "oc apply -f deploy-template.yaml"
         }
     } catch(Exception ex) {
         stage('Roll back to previous build') {
             echo "## Get build-param from previous build"
-            sh "oc get configmap build-param -o json --export >build-param-revert.json"
+            sh "oc get configmap ${SERVICE_NAME}-build-param -o json --export >build-param-revert.json"
             buildParamConfigMap = readJSON file: 'build-param-revert.json'
             buildParam = buildParamConfigMap.data
             writeYaml file: 'build-param-revert.yaml', data: buildParam
@@ -129,6 +135,7 @@ node('maven') {
             echo "## Revert deploy to previous build"
             sh "oc process deploy --ignore-unknown-parameters " +
                "--param-file=build-param-revert.yaml " +
+               "-p SERVICE_NAME=${SERVICE_NAME} " +
                "-p ENV=qa " +
                "-p BUILD_NAMESPACE=${stageBuildProject} " +
                "-p CPU_LIMIT=${buildParam.QA_CPU_LIMIT} " +

@@ -1,6 +1,14 @@
 # OpenShift Application Pipeline Demo - httpd
 
 ## Environment Setup
+
+Clone git repository and change directory into it.
+```
+git clone https://github.com/jkupferer/pipeline-demo-httpd
+cd pipeline-demo-httpd
+```
+
+Create sandbox and pipeline namespaces:
 ```
 SERVICE_NAME=example
 oc new-project $SERVICE_NAME-sandbox
@@ -10,6 +18,10 @@ oc new-project $SERVICE_NAME-int
 oc new-project $SERVICE_NAME-qa
 oc new-project $SERVICE_NAME-uat
 oc new-project $SERVICE_NAME-prd
+```
+
+Create service accounts:
+```
 oc create sa -n $SERVICE_NAME-build example-dev
 oc create sa -n $SERVICE_NAME-build example-test
 oc create sa -n $SERVICE_NAME-build example-prd
@@ -26,20 +38,20 @@ oc policy add-role-to-group -n $SERVICE_NAME-build system:image-puller system:se
 
 Grant dev pipeline access to dev projects:
 ```
-oc policy add-role-to-user -n $SERVICE_NAME-build edit system:serviceaccount:$SERVICE_NAME-build:$SERVICE_NAME-dev
-oc policy add-role-to-user -n $SERVICE_NAME-dev edit system:serviceaccount:$SERVICE_NAME-build:$SERVICE_NAME-dev
-oc policy add-role-to-user -n $SERVICE_NAME-int edit system:serviceaccount:$SERVICE_NAME-build:$SERVICE_NAME-dev
+oc policy add-role-to-user -n $SERVICE_NAME-build edit system:serviceaccount:$SERVICE_NAME-build:example-dev
+oc policy add-role-to-user -n $SERVICE_NAME-dev edit system:serviceaccount:$SERVICE_NAME-build:example-dev
+oc policy add-role-to-user -n $SERVICE_NAME-int edit system:serviceaccount:$SERVICE_NAME-build:example-dev
 ```
 
 Grant test pipeline access to dev projects:
 ```
-oc policy add-role-to-user -n $SERVICE_NAME-qa edit system:serviceaccount:$SERVICE_NAME-build:$SERVICE_NAME-test
-oc policy add-role-to-user -n $SERVICE_NAME-uat edit system:serviceaccount:$SERVICE_NAME-build:$SERVICE_NAME-test
+oc policy add-role-to-user -n $SERVICE_NAME-qa edit system:serviceaccount:$SERVICE_NAME-build:example-test
+oc policy add-role-to-user -n $SERVICE_NAME-uat edit system:serviceaccount:$SERVICE_NAME-build:example-test
 ```
 
 Grant production pipeline access to prd projects:
 ```
-oc policy add-role-to-user -n $SERVICE_NAME-prd edit system:serviceaccount:$SERVICE_NAME-build:$SERVICE_NAME-prd
+oc policy add-role-to-user -n $SERVICE_NAME-prd edit system:serviceaccount:$SERVICE_NAME-build:example-prd
 ```
 
 Deploy persistent jenkins:
@@ -49,16 +61,24 @@ oc new-app -n $SERVICE_NAME-build jenkins-persistent
 
 ## Sandbox Development
 
-Setup build in sandbox:
-
+Switch to sandbox namespace:
 ```
-SANDBOX_NAMESPACE=$SERVICE_NAME-sandbox
+oc project $SERVICE_NAME-sandbox
+```
+
+Update build config in sandbox:
+```
 oc process -f build-template.yaml \
- --param=SERVICE_NAME=$SERVICE_NAME \
-| oc apply -n $SANDBOX_NAMESPACE -f -
+ -p SERVICE_NAME=$SERVICE_NAME \
+| oc apply -f -
+```
+
+Test bulid config in sandbox:
+```
 oc start-build example --from-dir=.
 ```
 
+Perform deployment in sandbox:
 ```
 oc process -f deploy-template.yaml \
  --param=BUILD_NAMESPACE=$SANDBOX_NAMESPACE \
@@ -66,13 +86,13 @@ oc process -f deploy-template.yaml \
 | oc apply -n $SANDBOX_NAMESPACE -f -
 ```
 
-Testing
+Run containerized testing:
 ```
 oc create configmap -n $SANDBOX_NAMESPACE ${SERVICE_NAME}-test-scripts --from-file=test-scripts/
 oc process -f test-template.yaml --param=SERVICE_NAME=$SERVICE_NAME | oc create -f -
 ```
 
-Test cleanup
+Test cleanup:
 ```
 oc delete configmap ${SERVICE_NAME}-test-scripts
 oc delete pod ${SERVICE_NAME}-test
@@ -82,7 +102,7 @@ oc delete pod ${SERVICE_NAME}-test
 
 https://master.ibm.example.opentlc.com/
 
-https://jenkins-userXX-build.apps.ibm.example.opentlc.com/view/all/newJob
+https://jenkins-${SERVICE_NAME}-build.apps.ibm.example.opentlc.com/
 
 Get tokens
 

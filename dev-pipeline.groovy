@@ -43,6 +43,7 @@ node('maven') {
         sh "oc project ${buildProject}"
         sh "oc process -f src/build-template.yaml --ignore-unknown-parameters " +
            "--param-file=artifact/build-param.txt " +
+           "-p SERVICE_NAME=${SERVICE_NAME} " +
            "| oc apply -f -"
 
         echo "## Start build:"
@@ -54,6 +55,7 @@ node('maven') {
         sh "oc project ${devProject}"
         sh "oc process -f src/deploy-template.yaml --ignore-unknown-parameters " +
            "--param-file=artifact/build-param.txt " +
+           "-p SERVICE_NAME=${SERVICE_NAME} " +
            "-p ENV=dev " +
            "-p BUILD_NAMESPACE=${buildProject} " +
            "-p CPU_LIMIT=${buildParam.DEV_CPU_LIMIT} " +
@@ -79,6 +81,7 @@ node('maven') {
         getTestStatus = "oc get pod ${testPod} -o jsonpath='{.status.phase}'"
         sh "oc process -f src/test-template.yaml --ignore-unknown-parameters " +
            "--param-file=artifact/build-param.txt " +
+           "-p SERVICE_NAME=${SERVICE_NAME} " +
            "-p ENV=dev " +
            "| oc apply -f -"
 
@@ -94,10 +97,13 @@ node('maven') {
 
     stage('Record success in dev') {
         echo "## Save build parameters in ${devProject} project:"
-        sh "oc delete configmap build-param --ignore-not-found"
-        sh "oc create configmap build-param --from-env-file=artifact/build-param.txt"
+        sh "oc delete configmap ${SERVICE_NAME}-build-param --ignore-not-found"
+        sh "oc create configmap ${SERVICE_NAME}-build-param --from-env-file=artifact/build-param.txt"
 
         echo "## Save deploy template in ${devProject} project:"
-        sh "oc apply -f src/deploy-template.yaml"
+        deployTemplate = readYaml file: "src/deploy-template.yaml"
+        deployTemplate.metadata.name = "${SERVICE_NAME}-deploy"
+        writeYaml file: 'deploy-template.yaml', data: deployTemplate
+        sh "oc apply -f deploy-template.yaml"
     }
 }

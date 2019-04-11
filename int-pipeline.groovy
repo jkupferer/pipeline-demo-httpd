@@ -22,7 +22,8 @@ node('maven') {
         }
 
         echo "## Read build parameters from last successful dev build"
-        sh "oc get configmap build-param -n ${devProject} -o json --export >build-param.json"
+        sh "oc get configmap ${SERVICE_NAME}-build-param -n ${devProject} " +
+           "-o json --export >build-param.json"
         buildParamConfigMap = readJSON file: 'build-param.json'
         buildParam = buildParamConfigMap.data
         writeYaml file: 'build-param.yaml', data: buildParam
@@ -39,6 +40,7 @@ node('maven') {
         sh "oc project ${intProject}"
         sh "oc process -f src/deploy-template.yaml --ignore-unknown-parameters " +
            "--param-file=build-param.yaml " +
+           "-p SERVICE_NAME=${SERVICE_NAME} " +
            "-p ENV=int " +
            "-p BUILD_NAMESPACE=${buildProject} " +
            "-p CPU_LIMIT=${buildParam.INT_CPU_LIMIT} " +
@@ -64,6 +66,7 @@ node('maven') {
         getTestStatus = "oc get pod ${testPod} -o jsonpath='{.status.phase}'"
         sh "oc process -f src/test-template.yaml --ignore-unknown-parameters " +
            "--param-file=build-param.yaml " +
+           "-p SERVICE_NAME=${SERVICE_NAME} " +
            "-p ENV=int " +
            "| oc apply -f -"
 
@@ -79,10 +82,13 @@ node('maven') {
 
     stage('Record success in integration') {
         echo "## Save build parameters in ${intProject} project:"
-        sh "oc delete configmap build-param --ignore-not-found"
+        sh "oc delete configmap ${SERVICE_NAME}-build-param --ignore-not-found"
         sh "oc create -f build-param.json"
 
-        echo "## Save deploy template in ${intProject} project:"
-        sh "oc apply -f src/deploy-template.yaml"
+        echo "## Save deploy template in ${devProject} project:"
+        deployTemplate = readYaml file: "src/deploy-template.yaml"
+        deployTemplate.metadata.name = "${SERVICE_NAME}-deploy"
+        writeYaml file: 'deploy-template.yaml', data: deployTemplate
+        sh "oc apply -f deploy-template.yaml"
     }
 }
