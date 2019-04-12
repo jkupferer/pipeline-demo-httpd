@@ -1,5 +1,3 @@
-SERVICE_NAME=example
-
 PIPELINE_BUILD_NUMBER=0.10.2
 PIPELINE_BUILD_SOURCE=http://gogs-example.apps.ibm.example.opentlc.com/jkupferer/httpd-example
 PIPELINE_BUILD_BRANCH=master

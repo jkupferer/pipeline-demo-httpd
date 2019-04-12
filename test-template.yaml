@@ -2,27 +2,27 @@
 apiVersion: v1
 kind: Template
 labels:
-  service: ${SERVICE_NAME}
+  app: ${APP_NAME}
   template: test
 metadata:
   name: test
 parameters:
 - displayName: Service Name
-  name: SERVICE_NAME
+  name: APP_NAME
   required: true
 objects:
 - apiVersion: v1
   kind: Pod
   metadata:
-    name: ${SERVICE_NAME}-test
+    name: ${APP_NAME}-test
   spec:
     containers:
     - name: test
       image: docker-registry.default.svc:5000/openshift/python:latest
       command: ['/bin/sh', '-c', 'for TEST in /tests/*.sh; do source $TEST; done']
       env:
-      - name: SERVICE_NAME
-        value: ${SERVICE_NAME}
+      - name: APP_SERVICE_NAME
+        value: ${APP_NAME}
       volumeMounts:
       - mountPath: /tests
         name: tests
@@ -31,4 +31,4 @@ objects:
     - name: tests
       configMap:
         defaultMode: 0644
-        name: ${SERVICE_NAME}-test-scripts
+        name: ${APP_NAME}-test-scripts

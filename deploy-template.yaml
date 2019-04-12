@@ -2,7 +2,7 @@
 apiVersion: template.openshift.io/v1
 kind: Template
 labels:
-  service: ${SERVICE_NAME}
+  app: ${APP_NAME}
   template: deploy
 metadata:
   name: deploy
@@ -37,14 +37,14 @@ parameters:
 - displayName: Route Hostname
   name: ROUTE_HOST
   required: false
-- displayName: Service Name
-  name: SERVICE_NAME
+- displayName: Application Name
+  name: APP_NAME
   required: true
 objects:
 - apiVersion: v1
   kind: DeploymentConfig
   metadata:
-    name: ${SERVICE_NAME}
+    name: ${APP_NAME}
     annotations:
       pipeline-build-number: ${PIPELINE_BUILD_NUMBER}
       pipeline-build-source: ${PIPELINE_BUILD_SOURCE}
@@ -53,18 +53,18 @@ objects:
   spec:
     replicas: 2
     selector:
-      service: ${SERVICE_NAME}
+      app: ${APP_NAME}
     strategy:
       type: Rolling
     template:
       metadata:
         labels:
-          service: ${SERVICE_NAME}
-        name: ${SERVICE_NAME}
+          app: ${APP_NAME}
+        name: ${APP_NAME}
       spec:
         containers:
-        - name: ${SERVICE_NAME}
-          image: docker-registry.default.svc:5000/${BUILD_NAMESPACE}/${SERVICE_NAME}:${PIPELINE_BUILD_NUMBER}
+        - name: ${APP_NAME}
+          image: docker-registry.default.svc:5000/${BUILD_NAMESPACE}/${APP_NAME}:${PIPELINE_BUILD_NUMBER}
           imagePullPolicy: Always
           ports:
           - containerPort: 8080
@@ -88,20 +88,20 @@ objects:
   metadata:
     annotations:
       description: Exposes and load balances the application pods
-    name: ${SERVICE_NAME}
+    name: ${APP_NAME}
   spec:
     ports:
     - name: web
       port: 8080
       targetPort: 8080
     selector:
-      service: ${SERVICE_NAME}
+      app: ${APP_NAME}
 - apiVersion: v1
   kind: Route
   metadata:
-    name: ${SERVICE_NAME}
+    name: ${APP_NAME}
   spec:
     host: ${ROUTE_HOST}
     to:
       kind: Service
-      name: ${SERVICE_NAME}
+      name: ${APP_NAME}

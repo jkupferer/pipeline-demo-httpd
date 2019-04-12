@@ -1,5 +1,11 @@
 # OpenShift Application Pipeline Demo - httpd
 
+## Prerequisites
+
+In order to run this pipeline demo you will need an OpenShift cluster with
+user access. `oc` commands below assume that you are already logged into the
+target cluster such as with `oc login`.
+
 ## Environment Setup
 
 Clone git repository and change directory into it.
@@ -8,68 +14,76 @@ git clone https://github.com/jkupferer/pipeline-demo-httpd
 cd pipeline-demo-httpd
 ```
 
+Set variables for your cluster and demo application:
+```
+APP_NAME="example"
+NAMESPACE_PREFIX="${APP_NAME}"
+```
+
+Windows command line users may use `%APP_NAME%` variable syntax in the
+usage examples below.
+
 Create sandbox and pipeline namespaces:
 ```
-SERVICE_NAME=example
-oc new-project $SERVICE_NAME-sandbox
-oc new-project $SERVICE_NAME-build
-oc new-project $SERVICE_NAME-dev
-oc new-project $SERVICE_NAME-int
-oc new-project $SERVICE_NAME-qa
-oc new-project $SERVICE_NAME-uat
-oc new-project $SERVICE_NAME-prd
+oc new-project ${NAMESPACE_PREFIX}-sandbox
+oc new-project ${NAMESPACE_PREFIX}-build
+oc new-project ${NAMESPACE_PREFIX}-dev
+oc new-project ${NAMESPACE_PREFIX}-int
+oc new-project ${NAMESPACE_PREFIX}-qa
+oc new-project ${NAMESPACE_PREFIX}-uat
+oc new-project ${NAMESPACE_PREFIX}-prd
 ```
 
 Create service accounts:
 ```
-oc create sa -n $SERVICE_NAME-build example-dev
-oc create sa -n $SERVICE_NAME-build example-test
-oc create sa -n $SERVICE_NAME-build example-prd
+oc create sa -n ${NAMESPACE_PREFIX}-build example-dev
+oc create sa -n ${NAMESPACE_PREFIX}-build example-test
+oc create sa -n ${NAMESPACE_PREFIX}-build example-prd
 ```
 
 Grant access to all namespaces to pull from build namespace:
 ```
-oc policy add-role-to-group -n $SERVICE_NAME-build system:image-puller system:serviceaccounts:$SERVICE_NAME-dev
-oc policy add-role-to-group -n $SERVICE_NAME-build system:image-puller system:serviceaccounts:$SERVICE_NAME-int
-oc policy add-role-to-group -n $SERVICE_NAME-build system:image-puller system:serviceaccounts:$SERVICE_NAME-qa
-oc policy add-role-to-group -n $SERVICE_NAME-build system:image-puller system:serviceaccounts:$SERVICE_NAME-uat
-oc policy add-role-to-group -n $SERVICE_NAME-build system:image-puller system:serviceaccounts:$SERVICE_NAME-prd
+oc policy add-role-to-group -n ${NAMESPACE_PREFIX}-build system:image-puller system:serviceaccounts:${NAMESPACE_PREFIX}-dev
+oc policy add-role-to-group -n ${NAMESPACE_PREFIX}-build system:image-puller system:serviceaccounts:${NAMESPACE_PREFIX}-int
+oc policy add-role-to-group -n ${NAMESPACE_PREFIX}-build system:image-puller system:serviceaccounts:${NAMESPACE_PREFIX}-qa
+oc policy add-role-to-group -n ${NAMESPACE_PREFIX}-build system:image-puller system:serviceaccounts:${NAMESPACE_PREFIX}-uat
+oc policy add-role-to-group -n ${NAMESPACE_PREFIX}-build system:image-puller system:serviceaccounts:${NAMESPACE_PREFIX}-prd
 ```
 
 Grant dev pipeline access to dev projects:
 ```
-oc policy add-role-to-user -n $SERVICE_NAME-build edit system:serviceaccount:$SERVICE_NAME-build:example-dev
-oc policy add-role-to-user -n $SERVICE_NAME-dev edit system:serviceaccount:$SERVICE_NAME-build:example-dev
-oc policy add-role-to-user -n $SERVICE_NAME-int edit system:serviceaccount:$SERVICE_NAME-build:example-dev
+oc policy add-role-to-user -n ${NAMESPACE_PREFIX}-build edit system:serviceaccount:${NAMESPACE_PREFIX}-build:example-dev
+oc policy add-role-to-user -n ${NAMESPACE_PREFIX}-dev edit system:serviceaccount:${NAMESPACE_PREFIX}-build:example-dev
+oc policy add-role-to-user -n ${NAMESPACE_PREFIX}-int edit system:serviceaccount:${NAMESPACE_PREFIX}-build:example-dev
 ```
 
 Grant test pipeline access to dev projects:
 ```
-oc policy add-role-to-user -n $SERVICE_NAME-qa edit system:serviceaccount:$SERVICE_NAME-build:example-test
-oc policy add-role-to-user -n $SERVICE_NAME-uat edit system:serviceaccount:$SERVICE_NAME-build:example-test
+oc policy add-role-to-user -n ${NAMESPACE_PREFIX}-qa edit system:serviceaccount:${NAMESPACE_PREFIX}-build:${APP_NAME}-test
+oc policy add-role-to-user -n ${NAMESPACE_PREFIX}-uat edit system:serviceaccount:${NAMESPACE_PREFIX}-build:${APP_NAME}-test
 ```
 
 Grant production pipeline access to prd projects:
 ```
-oc policy add-role-to-user -n $SERVICE_NAME-prd edit system:serviceaccount:$SERVICE_NAME-build:example-prd
+oc policy add-role-to-user -n ${NAMESPACE_PREFIX}-prd edit system:serviceaccount:${NAMESPACE_PREFIX}-build:${APP_NAME}-prd
 ```
 
 Deploy persistent jenkins:
 ```
-oc new-app -n $SERVICE_NAME-build jenkins-persistent
+oc new-app -n ${NAMESPACE_PREFIX}-build jenkins-persistent
 ```
 
 ## Sandbox Development
 
 Switch to sandbox namespace:
 ```
-oc project $SERVICE_NAME-sandbox
+oc project ${NAMESPACE_PREFIX}-sandbox
 ```
 
 Update build config in sandbox:
 ```
 oc process -f build-template.yaml \
- -p SERVICE_NAME=$SERVICE_NAME \
+ -p APP_NAME=${APP_NAME} \
 | oc apply -f -
 ```
 
@@ -81,59 +95,158 @@ oc start-build example --from-dir=.
 Perform deployment in sandbox:
 ```
 oc process -f deploy-template.yaml \
- --param=BUILD_NAMESPACE=$SANDBOX_NAMESPACE \
- --param=SERVICE_NAME=$SERVICE_NAME \
-| oc apply -n $SANDBOX_NAMESPACE -f -
+ -p BUILD_NAMESPACE=${NAMESPACE_PREFIX}-sandbox \
+ -p APP_NAME=${APP_NAME} \
+| oc apply -f -
+```
+
+Get route for sandbox deployment:
+```
+oc get route
+```
+
+Test with web browser or `curl`.
+
+Set `APP_URL` based on route output above and run test scripts:
+```
+APP_URL="http://..."
+sh 01-check-content.sh
 ```
 
 Run containerized testing:
 ```
-oc create configmap -n $SANDBOX_NAMESPACE ${SERVICE_NAME}-test-scripts --from-file=test-scripts/
-oc process -f test-template.yaml --param=SERVICE_NAME=$SERVICE_NAME | oc create -f -
+oc create configmap ${APP_NAME}-test-scripts --from-file=test-scripts/
+oc process -f test-template.yaml -p APP_NAME="${APP_NAME}" | oc create -f -
+```
+
+Check test pod for containerized test results:
+```
+oc get pod 
 ```
 
 Test cleanup:
 ```
-oc delete configmap ${SERVICE_NAME}-test-scripts
-oc delete pod ${SERVICE_NAME}-test
+oc delete configmap ${APP_NAME}-test-scripts
+oc delete pod ${APP_NAME}-test
 ```
 
 ## Jenkins Pipeline
 
-https://master.ibm.example.opentlc.com/
+Get the hostname of the Jenkins server in your build namespace:
 
-https://jenkins-${SERVICE_NAME}-build.apps.ibm.example.opentlc.com/
+```
+oc get route -n ${NAMESPACE_PREFIX}-build
+```
+
+Log into the Jenkins server with a web browser using the hostname shown.
 
 Get tokens
 
 ```
-oc sa get-token example-dev
-oc sa get-token example-test
-oc sa get-token example-prd
+oc sa get-token -n ${NAMESPACE_PREFIX}-build example-dev
+oc sa get-token -n ${NAMESPACE_PREFIX}-build example-test
+oc sa get-token -n ${NAMESPACE_PREFIX}-build example-prd
 ```
 
-Store tokens as Jenkins credentials as secret text as example-dev, example-test, and example-prd.
-Be sure to set credentials id.
+Store these service accounts tokens in Jenkins as credentials
+(https://jenkins.io/doc/book/using/using-credentials/).  Store as global
+credentials of type secret text. Set credentials id as "example-dev",
+"example-test", and "example-prd".
 
 ### Create dev pipeline
 
-Create new job, "example-dev", type Pipeline. Click OK.
+Create new job (New item), "example-dev", of type Pipeline. Click OK.
 
 Select "This project is parameterized and add parameters:
 
-* `ARTIFACT_URL` = String parametr, default "http://artifacts.apps.ibm.example.opentlc.com/artifact0.zip"
-* `SERVICE_NAME` = String parameter, default "example"
-* `DEV_OPENSHIFT_URL` = String parameter, default "https://master.ibm.example.opentlc.com/"
+* `ARTIFACT_URL` = String parameter, default to "https://raw.githubusercontent.com/jkupferer/pipeline-demo-httpd/master/artifacts/artifact-0.1.zip"
+* `APP_NAME` = String parameter, default to same value as APP\_NAME
+* `NAMESPACE_PREFIX` = String parameter, default to same value as NAMESPACE\_PREFIX
+* `DEV_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
 * `DEV_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-dev"
 
 For Pipeline Definition, select "Pipeline script from SCM".
 
 * SCM - "Git"
-* Repository URL - "http://gogs-example.apps.ibm.example.opentlc.com/jkupferer/httpd-example.git"
+* Repository URL - "https://github.com/jkupferer/pipeline-demo-httpd.git"
 * Script Path - "dev-pipeline.groovy"
 
-Test run with defaults. Expect it to fail in stage "Test in dev"
+Test run with defaults. Expect it to fail in stage "Test in dev".
 
-Test again with `ARTIFACT_URL` "http://artifacts.apps.ibm.example.opentlc.com/artifact1.zip"
+Test again with `ARTIFACT_URL` "https://raw.githubusercontent.com/jkupferer/pipeline-demo-httpd/master/artifacts/artifact-0.2.zip"
 
-### Create dev pipeline
+### Create integration pipeline
+
+Create new job (New item), "example-int", of type Pipeline. Click OK.
+
+Select "This project is parameterized and add parameters:
+
+* `APP_NAME` = String parameter, default to same value as APP\_NAME
+* `NAMESPACE_PREFIX` = String parameter, default to same value as NAMESPACE\_PREFIX
+* `DEV_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
+* `DEV_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-dev"
+
+For Pipeline Definition, select "Pipeline script from SCM".
+
+* SCM - "Git"
+* Repository URL - "https://github.com/jkupferer/pipeline-demo-httpd.git"
+* Script Path - "int-pipeline.groovy"
+
+### Create qa pipeline
+
+Create new job (New item), "example-qa", of type Pipeline. Click OK.
+
+Select "This project is parameterized and add parameters:
+
+* `APP_NAME` = String parameter, default to same value as APP\_NAME
+* `NAMESPACE_PREFIX` = String parameter, default to same value as NAMESPACE\_PREFIX
+* `DEV_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
+* `DEV_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-dev"
+* `TEST_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
+* `TEST_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-test"
+
+(Note: `TEST_OPENSHIFT_URL` and `TEST_TOKEN_SECRET` can point to a different
+cluster to test cross-cluster deployment. This will require enabling skopeo
+image promotion between clusters).
+
+For Pipeline Definition, select "Pipeline script from SCM".
+
+* SCM - "Git"
+* Repository URL - "https://github.com/jkupferer/pipeline-demo-httpd.git"
+* Script Path - "qa-pipeline.groovy"
+
+### Create uat pipeline
+
+Create new job (New item), "example-uat", of type Pipeline. Click OK.
+
+Select "This project is parameterized and add parameters:
+
+* `APP_NAME` = String parameter, default to same value as APP\_NAME
+* `NAMESPACE_PREFIX` = String parameter, default to same value as NAMESPACE\_PREFIX
+* `TEST_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
+* `TEST_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-test"
+
+For Pipeline Definition, select "Pipeline script from SCM".
+
+* SCM - "Git"
+* Repository URL - "https://github.com/jkupferer/pipeline-demo-httpd.git"
+* Script Path - "uat-pipeline.groovy"
+
+### Create prod pipeline
+
+Create new job (New item), "example-prd", of type Pipeline. Click OK.
+
+Select "This project is parameterized and add parameters:
+
+* `APP_NAME` = String parameter, default to same value as APP\_NAME
+* `NAMESPACE_PREFIX` = String parameter, default to same value as NAMESPACE\_PREFIX
+* `TEST_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
+* `TEST_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-test"
+* `PRD_OPENSHIFT_URL` = String parameter, default to url of cluster API (`oc whoami --show-server`)
+* `PRD_TOKEN_SECRET` = Credentials parameter with credentials type "Secret text", default "example-test"
+
+For Pipeline Definition, select "Pipeline script from SCM".
+
+* SCM - "Git"
+* Repository URL - "https://github.com/jkupferer/pipeline-demo-httpd.git"
+* Script Path - "prod-pipeline.groovy"

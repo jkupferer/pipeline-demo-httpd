@@ -1,17 +1,18 @@
 /* Required parameters
  *
- * SERVICE_NAME -
+ * APP_NAME -
+ * NAMESPACE_PREFIX -
  * TEST_TOKEN_SECRET -
  * TEST_OPENSHIFT_URL -
  *
  */
 node('maven') {
     buildParam = null
-    buildProject = "${SERVICE_NAME}-build"
-    qaProject = "${SERVICE_NAME}-qa"
-    uatProject = "${SERVICE_NAME}-uat"
-    testConfigMap = "${SERVICE_NAME}-test-scripts"
-    testPod = "${SERVICE_NAME}-test"
+    buildProject = "${NAMESPACE_PREFIX}-build"
+    qaProject = "${NAMESPACE_PREFIX}-qa"
+    uatProject = "${NAMESPACE_PREFIX}-uat"
+    testConfigMap = "${APP_NAME}-test-scripts"
+    testPod = "${APP_NAME}-test"
 
     stage('Get Sources') {
         withCredentials([
@@ -24,16 +25,17 @@ node('maven') {
         }
 
         echo "## Read build parameters from last successful qa build"
-        sh "oc get configmap build-param -n ${qaProject} -o json --export >build-param.json"
+        sh "oc get configmap ${APP_NAME}-build-param -n ${qaProject} " +
+           "-o json --export >build-param.json"
+        sh "oc get template ${APP_NAME}-deploy -n ${qaProject} " +
+           "-o json --export >deploy-template.json"
+        sh "oc get template ${APP_NAME}-test -n ${qaProject} " +
+           "-o json --export >test-template.json"
+        sh "oc get configmap ${APP_NAME}-test-scripts -n ${qaProject} " +
+           "-o json --export >test-scripts.json"
         buildParamConfigMap = readJSON file: 'build-param.json'
         buildParam = buildParamConfigMap.data
         writeYaml file: 'build-param.yaml', data: buildParam
-
-        echo "## Get pipeline build source"
-        dir('src') {
-            git url: buildParam.PIPELINE_BUILD_SOURCE, branch: buildParam.PIPELINE_BUILD_BRANCH
-            //sh "git checkout ${buildParam.PIPELINE_BUILD_COMMIT}"
-        }
     }
 
     try {
@@ -42,6 +44,7 @@ node('maven') {
             sh "oc project ${uatProject}"
             sh "oc process -f src/deploy-template.yaml --ignore-unknown-parameters " +
                "--param-file=build-param.yaml " +
+               "-p APP_NAME=${APP_NAME} " +
                "-p ENV=uat " +
                "-p BUILD_NAMESPACE=${buildProject} " +
                "-p CPU_LIMIT=${buildParam.UAT_CPU_LIMIT} " +
@@ -51,22 +54,25 @@ node('maven') {
                "| oc apply -f -"
 
             echo "## Wait for deployment to complete:"
-            sh "oc rollout status dc/${SERVICE_NAME} -w"
+            sh "oc rollout status dc/${APP_NAME} -w"
         }
 
         stage('Test in uat') {
+            echo "## Save previous test scripts
+            sh "oc get configmap ${testConfigMap} -o json --export >test-scripts.json.save"
+
             echo "## Reset from previous testing:"
             sh "oc delete pod ${testPod} --ignore-not-found"
             sh "oc delete configmap ${testConfigMap} --ignore-not-found"
 
             echo "## Create ${testConfigMap} ConfigMap"
-            sh "oc create configmap ${testConfigMap} --from-file=src/test-scripts/"
-            sh "oc label configmap ${testConfigMap} service=${SERVICE_NAME}"
+            sh "oc create -f test-scripts.json"
 
             echo "## Process test template to initiate tests:"
             getTestStatus = "oc get pod ${testPod} -o jsonpath='{.status.phase}'"
-            sh "oc process -f src/test-template.yaml --ignore-unknown-parameters " +
+            sh "oc process -f test-template.yaml --ignore-unknown-parameters " +
                "--param-file=build-param.yaml " +
+               "-p APP_NAME=${APP_NAME} " +
                "-p ENV=uat " +
                "| oc apply -f -"
 
@@ -86,7 +92,12 @@ node('maven') {
             sh "oc create -f build-param.json"
 
             echo "## Save deploy template in ${uatProject} project:"
-            sh "oc apply -f src/deploy-template.yaml"
+            sh "oc delete template ${APP_NAME}-deploy --ignore-not-found"
+            sh "oc create-f deploy-template.json"
+
+            echo "## Save deploy template in ${qaProject} project:"
+            sh "oc delete template ${APP_NAME}-test --ignore-not-found"
+            sh "oc create -f test-template.json"
         }
     } catch(Exception ex) {
         stage('Roll back to previous build') {
@@ -106,6 +117,11 @@ node('maven') {
                "-p MEMORY_LIMIT=${buildParam.UAT_MEMORY_LIMIT} " +
                "-p MEMORY_REQUEST=${buildParam.UAT_MEMORY_REQUEST} " +
                "| oc apply -f -"
+
+            echo "## Revert test scripts"
+            sh "oc delete configmap ${testConfigMap} --ignore-not-found"
+            sh "[[ ! -s test-scripts.json.save ]] || " +
+               "oc create -f test-scripts.json.save"
 
             error("Rolled back...")
         }

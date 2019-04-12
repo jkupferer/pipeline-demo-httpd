@@ -2,7 +2,7 @@
 apiVersion: template.openshift.io/v1
 kind: Template
 labels:
-  service: ${SERVICE_NAME}
+  app: ${APP_NAME}
   template: build
 metadata:
   name: build
@@ -20,17 +20,17 @@ parameters:
   name: PIPELINE_BUILD_COMMIT
   value: sandbox
 - displayName: Service Name
-  name: SERVICE_NAME
+  name: APP_NAME
   required: true
 objects:
 - apiVersion: v1
   kind: ImageStream
   metadata:
-    name: ${SERVICE_NAME}
+    name: ${APP_NAME}
 - apiVersion: v1
   kind: BuildConfig
   metadata:
-    name: ${SERVICE_NAME}
+    name: ${APP_NAME}
     annotations:
       pipeline-build-number: ${PIPELINE_BUILD_NUMBER}
       pipeline-build-source: ${PIPELINE_BUILD_SOURCE}
@@ -40,7 +40,7 @@ objects:
     output:
       to:
         kind: ImageStreamTag
-        name: ${SERVICE_NAME}:${PIPELINE_BUILD_NUMBER}
+        name: ${APP_NAME}:${PIPELINE_BUILD_NUMBER}
     source:
       type: Binary
       contextDir: content
